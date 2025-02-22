@@ -16,7 +16,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND, STATUS_BAR_ITEM_FOCUS_BORDER, STATUS_BAR_FOCUS_BORDER } from '../../../common/theme.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { contrastBorder, activeContrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
-import { EventHelper, addDisposableListener, EventType, clearNode, getWindow } from '../../../../base/browser/dom.js';
+import { EventHelper, addDisposableListener, EventType, clearNode, getWindow, isHTMLElement } from '../../../../base/browser/dom.js';
 import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { Parts, IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
@@ -145,7 +145,19 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 	private leftItemsContainer: HTMLElement | undefined;
 	private rightItemsContainer: HTMLElement | undefined;
 
-	private readonly hoverDelegate = this._register(this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', true, (_, focus?: boolean) => (
+	private readonly hoverDelegate = this._register(this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', {
+		instantHover: true,
+		dynamicDelay(content) {
+			if (typeof content === 'function' || isHTMLElement(content)) {
+				// override the delay for content that is rich (e.g. html or long running)
+				// so that is appears more instantly. these hovers carry more important
+				// information and should not be delayed by preference.
+				return 500;
+			}
+
+			return undefined;
+		}
+	}, (_, focus?: boolean) => (
 		{
 			persistence: {
 				hideOnKeyDown: true,
@@ -794,11 +806,12 @@ export class StatusbarService extends MultiWindowParts<StatusbarPart> implements
 		return this.mainPart.addEntry(entry, id, alignment, priorityOrLocation);
 	}
 
-	private doAddEntryToAllWindows(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priorityOrLocation: number | IStatusbarEntryLocation | IStatusbarEntryPriority = 0): IStatusbarEntryAccessor {
+	private doAddEntryToAllWindows(originalEntry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priorityOrLocation: number | IStatusbarEntryLocation | IStatusbarEntryPriority = 0): IStatusbarEntryAccessor {
 		const entryDisposables = new DisposableStore();
 
 		const accessors = new Set<IStatusbarEntryAccessor>();
 
+		let entry = originalEntry;
 		function addEntry(part: StatusbarPart | AuxiliaryStatusbarPart): void {
 			const partDisposables = new DisposableStore();
 			partDisposables.add(part.onWillDispose(() => partDisposables.dispose()));
@@ -818,9 +831,11 @@ export class StatusbarService extends MultiWindowParts<StatusbarPart> implements
 		entryDisposables.add(this.onDidCreateAuxiliaryStatusbarPart(part => addEntry(part)));
 
 		return {
-			update: (entry: IStatusbarEntry) => {
+			update: (updatedEntry: IStatusbarEntry) => {
+				entry = updatedEntry;
+
 				for (const update of accessors) {
-					update.update(entry);
+					update.update(updatedEntry);
 				}
 			},
 			dispose: () => entryDisposables.dispose()

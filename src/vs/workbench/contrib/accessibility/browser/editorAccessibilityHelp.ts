@@ -19,7 +19,7 @@ import { CommentContextKeys } from '../../comments/common/commentContextKeys.js'
 import { NEW_UNTITLED_FILE_COMMAND_ID } from '../../files/browser/fileConstants.js';
 import { IAccessibleViewService, IAccessibleViewContentProvider, AccessibleViewProviderId, IAccessibleViewOptions, AccessibleViewType } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibilityVerbositySettingId } from './accessibilityConfiguration.js';
-import { ctxHasEditorModification, ctxHasRequestInProgress } from '../../chat/browser/chatEditing/chatEditingEditorController.js';
+import { ctxHasEditorModification, ctxHasRequestInProgress } from '../../chat/browser/chatEditing/chatEditingEditorContextKeys.js';
 
 export class EditorAccessibilityHelpContribution extends Disposable {
 	static ID: 'editorAccessibilityHelpContribution';
@@ -73,6 +73,7 @@ class EditorAccessibilityHelpProvider extends Disposable implements IAccessibleV
 			}
 		}
 		content.push(AccessibilityHelpNLS.activeEditorState);
+		content.push(AccessibilityHelpNLS.toolbar);
 
 		const chatEditInfo = getChatEditInfo(this._keybindingService, this._contextKeyService, this._editor);
 		if (chatEditInfo) {
